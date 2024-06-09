@@ -1,0 +1,5 @@
+el nivel 2 no detecta las coliciones.(resuelto)
+Agregar una textura diferente a los obstaculos movibles.(hecho)
+Darle textura de piedra a los obstaculos estaticos.
+Cuando termine el juego, el personaje se elevara.
+

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 18px;
+        }
+        #restartBtn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 30px;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            display: none;
+        }
+        #changeViewBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px 20px;
+            background-color: #0000ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #changeViewBtn2{
+            position: absolute;     
+            top: 50px;
+            right: 10px;
+            padding: 10px 20px;
+            background-color: #0000ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #changeViewBtn3{
+            position: absolute;
+            top: 90px;
+            right: 10px;
+            padding: 10px 20px;
+            background-color: #0000ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #levelMessage {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div>Monedas: <span id="coinCount">0</span></div>
+        <div>Puntaje: <span id="score">0</span></div>
+    </div>
+    <button id="restartBtn">Reiniciar Juego</button>
+    <button id="changeViewBtn">Vista adelante</button>
+    <button id="changeViewBtn2"> Vista  arriba</button>
+    <button id="changeViewBtn3"> primera persona</button>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+    <audio id="jumpSound" src="salto.mp3"></audio>
+    <audio id="coinSound" src="moneda.mp3"></audio>
+    <audio id="backgroundMusic" loop autoplay>
+        <source src="hielo.mpeg" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <div id="levelMessage">Ice</div>
+    <script>
+        // Inicialización de Three.js
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Agregar luces
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Luz ambiental
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1); // Luz direccional
+        directionalLight.position.set(0, 10, 10);
+        scene.add(directionalLight);
+
+        // Variables para el juego
+        let mario, coins = [], staticObstacles = [], movingObstacles = [], solidObstacles = [];
+        let marioSpeed = 0.3;
+        let rotationSpeed = 0.5; // Nueva variable para controlar la velocidad de rotación
+        let jumpForce = 0.50;
+        let gravity = 0.005;
+        let isJumping = false;
+        let isGrounded = true;
+        let coinCount = 0;
+        let score = 0;
+        let obstacleSpeed = 0.1; // Velocidad de los obstáculos móviles
+        let canMove = true; // Variable para controlar si Mario puede moverse
+        let isAlternateView = false; // Variable para controlar la vista de la cámara
+
+        // Creación del suelo con textura
+        const groundTexture = new THREE.TextureLoader().load('texturaHielo.jpg');
+        groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+        groundTexture.repeat.set(25, 25);
+        const groundGeometry = new THREE.PlaneGeometry(100, 200);
+        const groundMaterial = new THREE.MeshBasicMaterial({ map: groundTexture });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Creación del cielo de fondo
+        const skyTexture = new THREE.TextureLoader().load('cielo.webp');
+        scene.background = skyTexture;
+
+        // Creación de Mario
+        function createMario() {
+            const loader = new THREE.GLTFLoader();
+            loader.load('fantasma.glb', function (gltf) {
+                mario = gltf.scene;
+                mario.scale.set(0.5, 0.5, 0.5); // Ajusta la escala del modelo
+                mario.position.y = 1; // Ajusta la posición de Mario si es necesario
+                // Agregar modelo a la escena
+                scene.add(mario);
+            });
+        }
+
+        createMario();
+
+        // Creación de monedas
+        function createCoins() {
+            const coinGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 32);
+            const coinMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const coinPositions = [
+                { x: 17, y: 0.55, z: -20 },
+                { x: -11, y: 0.55, z: -9.5 },
+                { x: -11, y: 0.55, z: -14.5 },
+                { x: -7.5, y: 0.55, z: -26 },
+                { x: -17, y: 0.55, z: -5 },
+                { x: 11.5, y: 0.55, z: -18 },
+                { x: 17, y: 0.55, z: -31 },
+                { x: 0.5, y: 0.55, z: -23 },
+                
+            ];
+            coinPositions.forEach(position => {
+                const coin = new THREE.Mesh(coinGeometry, coinMaterial);
+                coin.position.set(position.x, position.y, position.z);
+                coins.push(coin);
+                scene.add(coin);
+            });
+        }
+
+        
+        createCoins();
+
+        // Creación de obstáculos estáticos
+        function createStaticObstacles() {
+            const obstacleGeometry = new THREE.BoxGeometry(1, 2, 1);
+            
+            // Cargar la textura desde una imagen
+            const textureLoader = new THREE.TextureLoader();
+            const texture = textureLoader.load('obstaculos.jpg');
+            
+            // Aplicar la textura al material
+            const obstacleMaterial = new THREE.MeshBasicMaterial({ map: texture });
+
+            const obstaclePositions = [
+                //horizontal parte izquierda(cuadro)
+                { x: -2, y: 1, z: 3 },{ x: -2, y: 1, z: 2 },{ x: -2, y: 1, z: 1 },{ x: -2, y: 1, z: 0},{ x: -2, y: 1, z: -1 },{ x: -2, y: 1, z: -2 },{ x: -3, y: 1, z: -2 },{ x: -4, y: 1, z: -2 },
+                { x: -5, y: 1, z: -2 },{ x: -6, y: 1, z: -2 },{ x: -7, y: 1, z: -2 },{ x: -8, y: 1, z: -2 },{ x: -9, y: 1, z: -2 },{ x: -10, y: 1, z: -2 },{ x: -11, y: 1, z: -2 },{ x: -12, y: 1, z: -2 },
+                { x: -13, y: 1, z: -2 },{ x: -14, y: 1, z: -2 },{ x: -15, y: 1, z: -2 },{ x: -16, y: 1, z: -2 },{ x: -17, y: 1, z: -2 },{ x: -18, y: 1, z: -2 },{ x: -19, y: 1, z: -2 },{ x: -20, y: 1, z: -2 },
+                { x: -20, y: 1, z: -3 },{ x: -20, y: 1, z: -4 },{ x: -20, y: 1, z: -5 },{ x: -20, y: 1, z: -6 },{ x: -20, y: 1, z: -7 },{ x: -20, y: 1, z: -8 },{ x: -20, y: 1, z: -9 },{ x: -20, y: 1, z: -10 },
+                { x: -20, y: 1, z: -11 },{ x: -20, y: 1, z: -12 },{ x: -20, y: 1, z: -13 },{ x: -20, y: 1, z: -14 },{ x: -20, y: 1, z: -15 },{ x: -20, y: 1, z: -16 },{ x: -20, y: 1, z: -17 },{ x: -20, y: 1, z: -18 },
+                { x: -20, y: 1, z: -19 },{ x: -20, y: 1, z: -20 },{ x: -20, y: 1, z: -21 },{ x: -20, y: 1, z: -22 },{ x: -20, y: 1, z: -23 },{ x: -20, y: 1, z: -24 },{ x: -20, y: 1, z: -25 },{ x: -20, y: 1, z: -26 },
+                { x: -20, y: 1, z: -27 },{ x: -20, y: 1, z: -28 },{ x: -20, y: 1, z: -29 },{ x: -20, y: 1, z: -30 },{ x: -20, y: 1, z: -31 },{ x: -20, y: 1, z: -32 },{ x: -20, y: 1, z: -33 },{ x: -20, y: 1, z: -34 },
+                { x: -19, y: 1, z: -34 }, { x: -18, y: 1, z: -34 }, { x: -17, y: 1, z: -34 }, { x: -16, y: 1, z: -34 }, { x: -15, y: 1, z: -34 }, { x: -14, y: 1, z: -34 }, { x: -13, y: 1, z: -34 }, { x: -12, y: 1, z: -34 },
+                { x: -11, y: 1, z: -34 }, { x: -10, y: 1, z: -34 }, { x: -9, y: 1, z: -34 }, { x: -8, y: 1, z: -34 }, { x: -7, y: 1, z: -34 }, { x: -6, y: 1, z: -34 }, { x: -5, y: 1, z: -34 }, { x: -4, y: 1, z: -34 },
+                { x: -3, y: 1, z: -34 },{ x: -2, y: 1, z: -34 },{ x: -1, y: 1, z: -34 },{ x: 0, y: 1, z: -34 },{ x: 1, y: 1, z: -34 },{ x: 2, y: 1, z: -34 },{ x: 3, y: 1, z: -34 },{ x: 4, y: 1, z: -34 },{ x: 5, y: 1, z: -34 },
+                { x: 6, y: 1, z: -34 },{ x: 7, y: 1, z: -34 },{ x: 8, y: 1, z: -34 },{ x: 9, y: 1, z: -34 },{ x: 10, y: 1, z: -34 },{ x: 11, y: 1, z: -34 },{ x: 12, y: 1, z: -34 },{ x: 13, y: 1, z: -34 },{ x: 14, y: 1, z: -34 },
+                { x: 15, y: 1, z: -34 },{ x: 16, y: 1, z: -34 },{ x: 17, y: 1, z: -34 },{ x: 18, y: 1, z: -34 },{ x: 19, y: 1, z: -34 },
+                //horizontal parte derecha(cuadro)
+                { x: 2, y: 1, z: 1 },{ x: 2, y: 1, z: 2 },{ x: 2, y: 1, z: 3 },{ x: 2, y: 1, z: 0},{ x: 2, y: 1, z: -1 },{ x: 2, y: 1, z: -2 },{ x: 3, y: 1, z: -2 },{ x: 4, y: 1, z: -2 },
+                { x: 5, y: 1, z: -2 },{ x: 6, y: 1, z: -2 },{ x: 7, y: 1, z: -2 },{ x: 8, y: 1, z: -2 },{ x: 9, y: 1, z: -2 },{ x: 10, y: 1, z: -2 },{ x: 11, y: 1, z: -2 },{ x: 12, y: 1, z: -2 },
+                { x: 13, y: 1, z: -2 },{ x: 14, y: 1, z: -2 },{ x: 15, y: 1, z: -2 },{ x: 16, y: 1, z: -2 },{ x: 17, y: 1, z: -2 },{ x: 18, y: 1, z: -2 },{ x: 19, y: 1, z: -2 },{ x: 20, y: 1, z: -2 },
+                { x: 20, y: 1, z: -3 },{ x: 20, y: 1, z: -4 },{ x: 20, y: 1, z: -5 },{ x: 20, y: 1, z: -6 },{ x: 20, y: 1, z: -7 },{ x: 20, y: 1, z: -8 },{ x: 20, y: 1, z: -9 },{ x: 20, y: 1, z: -10 },
+                { x: 20, y: 1, z: -11 },{ x: 20, y: 1, z: -12 },{ x: 20, y: 1, z: -13 },{ x: 20, y: 1, z: -14 },{ x: 20, y: 1, z: -15 },{ x: 20, y: 1, z: -16 },{ x: 20, y: 1, z: -17 },{ x: 20, y: 1, z: -18 },
+                { x: 20, y: 1, z: -19 },{ x: 20, y: 1, z: -20 },{ x: 20, y: 1, z: -21 },{ x: 20, y: 1, z: -22 },{ x: 20, y: 1, z: -23 },{ x: 20, y: 1, z: -24 },{ x: 20, y: 1, z: -25 },{ x: 20, y: 1, z: -26 },
+                { x: 20, y: 1, z: -27 },{ x: 20, y: 1, z: -28 },{ x: 20, y: 1, z: -29 },{ x: 20, y: 1, z: -30 },{ x: 20, y: 1, z: -31 },{ x: 20, y: 1, z: -32 },{ x: 20, y: 1, z: -33 },{ x: 20, y: 1, z: -34 },
+                //parte central
+                { x: 2, y: 1, z: -7 }, { x: 3, y: 1, z: -7 }, { x: 4, y: 1, z: -7 }, { x: 5, y: 1, z: -7 }, { x: 6, y: 1, z: -7 }, { x: 7, y: 1, z: -7 }, { x: 8, y: 1, z: -7 }, { x: 9, y: 1, z: -7 }, { x: 10, y: 1, z: -7 },
+                { x: 11, y: 1, z: -7 }, { x: 12, y: 1, z: -7 }, { x: 13, y: 1, z: -7 }, { x: 14, y: 1, z: -7 }, { x: 14, y: 1, z: -8 },{ x: 14, y: 1, z: -9 },{ x: 14, y: 1, z: -10 },{ x: 14, y: 1, z: -11 },{ x: 14, y: 1, z: -12 },
+                { x: 14, y: 1, z: -13 },{ x: 14, y: 1, z: -14},{ x: 14, y: 1, z: -15 },{ x: 14, y: 1, z: -16 },{ x: 14, y: 1, z: -17 },{ x: 14, y: 1, z: -18 },{ x: 14, y: 1, z: -19 },{ x: 14, y: 1, z: -20 },{ x: 14, y: 1, z: -21 },
+                { x: 14, y: 1, z: -22 },{ x: 14, y: 1, z: -23 },{ x: 15, y: 1, z: -23 },{ x: 16, y: 1, z: -23 },{ x: 17, y: 1, z: -23 },{ x: 18, y: 1, z: -23 },{ x: 19, y: 1, z: -23 },{ x: 9, y: 1, z: -23 },{ x: 9, y: 1, z: -22 },
+                { x: 9, y: 1, z: -21 },{ x: 9, y: 1, z: -20 },{ x: 9, y: 1, z: -19 },{ x: 9, y: 1, z: -18 },{ x: 9, y: 1, z: -17 },{ x: 9, y: 1, z: -16 },{ x: 9, y: 1, z: -15 },{ x: 9, y: 1, z: -14 },{ x: 9, y: 1, z: -13 },{ x: 9, y: 1, z: -12 },
+                { x: 8, y: 1, z: -12 },{ x: 7, y: 1, z: -12 },{ x: 6, y: 1, z: -12 },{ x: 5, y: 1, z: -12 },{ x: 7, y: 1, z: -12 },{ x: 6, y: 1, z: -12 },{ x: 5, y: 1, z: -12 },{ x: 4, y: 1, z: -12 },{ x: 3, y: 1, z: -12 },{ x: 2, y: 1, z: -12 },
+                { x: -2, y: 1, z: -7 },{ x: -3, y: 1, z: -7 },{ x: -4, y: 1, z: -7 },{ x: -5, y: 1, z: -7 },{ x: -6, y: 1, z: -7 },{ x: -7, y: 1, z: -7 },{ x: -8, y: 1, z: -7 },{ x: -9, y: 1, z: -7 },{ x: -10, y: 1, z: -7 },{ x: -11, y: 1, z: -7 },
+                { x: -12, y: 1, z: -7 },{ x: -13, y: 1, z: -7 },{ x: -14, y: 1, z: -7 },{ x: -14, y: 1, z: -8 },{ x: -14, y: 1, z: -9 },{ x: -14, y: 1, z: -10 },{ x: -14, y: 1, z: -11 },{ x: -14, y: 1, z: -12 },{ x: -13, y: 1, z: -12 },{ x: -12, y: 1, z: -12 },
+                { x: -11, y: 1, z: -12 },{ x: -10, y: 1, z: -12 },{ x: -9, y: 1, z: -12 },{ x: -8, y: 1, z: -12 },{ x: -7, y: 1, z: -12 },{ x: -6, y: 1, z: -12 },{ x: -5, y: 1, z: -12 },{ x: -4, y: 1, z: -12 },{ x: -3, y: 1, z: -12 },{ x: -2, y: 1, z: -12 },
+                { x: -1, y: 1, z: -12 },{ x: 0, y: 1, z: -12 },{ x: 1, y: 1, z: -12 },{ x: -14, y: 1, z: -13 },{ x: -14, y: 1, z: -14 },{ x: -14, y: 1, z: -15 },{ x: -14, y: 1, z: -16 },{ x: -14, y: 1, z: -17 },{ x: -13, y: 1, z: -17 },{ x: -12, y: 1, z: -17 },
+                { x: -11, y: 1, z: -17 },{ x: -10, y: 1, z: -17 },{ x: -9, y: 1, z: -17 },{ x: -8, y: 1, z: -17 },{ x: -7, y: 1, z: -17 },{ x: -6, y: 1, z: -17 },{ x: -5, y: 1, z: -17 },{ x: -4, y: 1, z: -17 },{ x: -3, y: 1, z: -17 },{ x: 3, y: 1, z: -17 },
+                { x: 3, y: 1, z: -18 },{ x: 3, y: 1, z: -19 },{ x: 3, y: 1, z: -20 },{ x: 3, y: 1, z: -21 },{ x: 3, y: 1, z: -22 },{ x: 3, y: 1, z: -23 },{ x: 3, y: 1, z: -24 },{ x: 3, y: 1, z: -25 },{ x: 3, y: 1, z: -26 },{ x: 3, y: 1, z: -27 },{ x: 3, y: 1, z: -28 },
+                { x: 4, y: 1, z: -28 },{ x: 5, y: 1, z: -28 },{ x: 6, y: 1, z: -28 },{ x: 7, y: 1, z: -28 },{ x: 8, y: 1, z: -28 },{ x: 9, y: 1, z: -28 },{ x: 10, y: 1, z: -28 },{ x: 11, y: 1, z: -28 },{ x: 12, y: 1, z: -28 },{ x: 13, y: 1, z: -28 },{ x: 14, y: 1, z: -28 },
+                { x: -2, y: 1, z: -33 },{ x: -2, y: 1, z: -32 },{ x: -2, y: 1, z: -31 },{ x: -2, y: 1, z: -30 },{ x: -2, y: 1, z: -29 },{ x: -2, y: 1, z: -28 },{ x: -2, y: 1, z: -27 },{ x: -2, y: 1, z: -26 },{ x: -2, y: 1, z: -25 },{ x: -2, y: 1, z: -24 },{ x: -2, y: 1, z: -23 },
+                { x: -3, y: 1, z: -23 }, { x: -4, y: 1, z: -23 }, { x: -5, y: 1, z: -23 }, { x: -6, y: 1, z: -23 }, { x: -7, y: 1, z: -23 }, { x: -8, y: 1, z: -23 }, { x: -9, y: 1, z: -23 }, { x: -10, y: 1, z: -23 }, { x: -11, y: 1, z: -23 }, { x: -12, y: 1, z: -23 }, { x: -13, y: 1, z: -23 },
+                { x: -13, y: 1, z: -24 },{ x: -13, y: 1, z: -25 },{ x: -13, y: 1, z: -26 },{ x: -13, y: 1, z: -27 },{ x: -13, y: 1, z: -28 },
+                
+                { x: -4, y: 1, z: -45 },
+            ];
+            obstaclePositions.forEach(position => {
+                const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+                obstacle.position.set(position.x, position.y, position.z);
+                staticObstacles.push(obstacle);
+                scene.add(obstacle);
+            });
+        }
+
+        createStaticObstacles();
+
+        // Cargar la textura GIF del obstáculo móvil
+        const textureLoader = new THREE.TextureLoader();
+        const movingObstacleTexture = textureLoader.load('fuego.gif');
+
+        // Material del obstáculo móvil con textura
+        const movingObstacleMaterial = new THREE.MeshBasicMaterial({ map: movingObstacleTexture });
+        // Creación de obstáculos móviles con forma de esferas
+        function createMovingObstacles() {
+            const obstacleGeometry = new THREE.SphereGeometry(1, 32, 32); // Cambiamos la geometría a una esfera
+            const obstaclePositions = [
+                { x: -3, y: 1, z: -10 },
+                { x: 5, y: 1, z: -20 },
+                { x: -5, y: 1, z: -30 },
+            ];
+            obstaclePositions.forEach(position => {
+                const obstacle = new THREE.Mesh(obstacleGeometry, movingObstacleMaterial);
+                obstacle.position.set(position.x, position.y, position.z);
+                movingObstacles.push(obstacle);
+                scene.add(obstacle);
+            });
+        }
+        createMovingObstacles();
+
+        // Posición inicial de la cámara
+        camera.position.y = 5;
+        camera.position.z = 10;
+        camera.lookAt(0, 0, 0);
+
+        // Variables para el control de la cámara con el mouse
+        let isDragging = false;
+        let previousMousePosition = {
+            x: 0,
+            y: 0
+        };
+
+        // Eventos para el movimiento del mouse
+        window.addEventListener('mousedown', function(event) {
+            isDragging = true;
+            previousMousePosition.x = event.clientX;
+            previousMousePosition.y = event.clientY;
+        });
+
+        window.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        window.addEventListener('mousemove', function(event) {
+            if (!isDragging) return;
+            let deltaMove = {
+                x: event.clientX - previousMousePosition.x,
+                y: event.clientY - previousMousePosition.y
+            };
+
+            // Actualizar la orientación de la cámara basada en el movimiento del mouse
+            camera.rotation.y -= deltaMove.x * 0.01;
+            camera.rotation.x -= deltaMove.y * 0.01;
+
+            previousMousePosition = {
+                x: event.clientX,
+                y: event.clientY
+            };
+        });
+
+        // Función para reproducir el sonido al saltar
+        function playJumpSound() {
+            const jumpSound = document.getElementById("jumpSound");
+            jumpSound.currentTime = 0; // Reiniciar la reproducción si ya se está reproduciendo
+            jumpSound.play();
+        }
+
+        // Función para reproducir el sonido al colisionar con monedas
+        function playCoinSound() {
+            const coinSound = document.getElementById("coinSound");
+            coinSound.currentTime = 0; // Reiniciar la reproducción si ya se está reproduciendo
+            coinSound.play();
+        }
+
+        // Eventos de teclado para el control de Mario
+        const keysPressed = {};
+        window.addEventListener('keydown', function(event) {
+            keysPressed[event.key] = true;
+            handleKeys();
+            if (event.key === ' ') { // Espacio
+                playJumpSound(); // Reproduce el sonido al saltar
+            }
+        });
+        window.addEventListener('keyup', function(event) {
+            delete keysPressed[event.key];
+            handleKeys();
+        });
+
+        function handleKeys() {
+            let movementX = 0;
+            let movementZ = 0;
+            if ('a' in keysPressed || 'A' in keysPressed) {
+                movementX -= marioSpeed;
+                mario.rotation.y += rotationSpeed; // Rotar a Mario hacia la izquierda
+                mario.rotation.y += rotationSpeed;
+            }
+            if ('d' in keysPressed || 'D' in keysPressed) {
+                movementX += marioSpeed;
+                mario.rotation.y -= rotationSpeed; // Rotar a Mario hacia la derecha
+            }
+            if ('w' in keysPressed || 'W' in keysPressed) {
+                movementZ -= marioSpeed;
+                mario.rotation.y -= rotationSpeed;
+            }
+            if ('s' in keysPressed || 'S' in keysPressed) {
+                movementZ += marioSpeed;
+                mario.rotation.y += rotationSpeed;
+                mario.rotation.y += rotationSpeed;
+            }
+            if (' ' in keysPressed && !isJumping && isGrounded && canMove) {
+                isJumping = true;
+                isGrounded = false;
+                jumpForce = 0.15;
+            }
+
+            // Movimiento de Mario
+            if (canMove) {
+                mario.position.x += movementX;
+                mario.position.z += movementZ;
+            }
+        }
+
+        // Evento para cambiar la vista frontal
+        document.getElementById("changeViewBtn").addEventListener("click", function() {
+            isAlternateView = !isAlternateView;
+            if (isAlternateView) {
+                camera.position.set(0, 20, -40);
+                camera.lookAt(0, 0, -10);
+            } else {
+                camera.position.set(0, 5, 10);
+                camera.lookAt(0, 0, 0);
+            }
+        });
+        // Evento para cambiar la vista 
+        document.getElementById("changeViewBtn2").addEventListener("click", function() {
+            isAlternateView = !isAlternateView;
+            if (isAlternateView) {
+                camera.position.set(0, 30, -15);
+                camera.lookAt(0, -100, -20);
+            } else {
+                camera.position.set(0, 5, 10);
+                camera.lookAt(0, 0, 0);
+            }
+
+        });
+         // Evento para cambiar la vista 
+         document.getElementById("changeViewBtn3").addEventListener("click", function() {
+            isAlternateView = !isAlternateView;
+            if (isAlternateView) {
+
+                //falta hacer que la camara se mueva con el personje
+
+            } else {
+                camera.position.set(0, 5, 10);
+                camera.lookAt(0, 0, 0);
+            }
+
+        });
+
+         // Función para mostrar el mensaje al inicio del nivel
+         function showLevelMessage(message, duration) {
+            const levelMessage = document.getElementById('levelMessage');
+            levelMessage.innerText = message;
+            levelMessage.style.display = 'block';
+            setTimeout(() => {
+                levelMessage.style.display = 'none';
+            }, duration);
+        }
+
+        // Llamar a la función para mostrar el mensaje "Ice" durante 3 segundos al inicio
+        showLevelMessage('templo de hielo', 3000);
+
+        // Evento para reiniciar el juego
+        document.getElementById("restartBtn").addEventListener("click", function() {
+            location.reload();
+        });
+
+        // Render loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Movimiento de Mario
+            if (isJumping && canMove) {
+                mario.position.y += jumpForce;
+                jumpForce -= gravity;
+                if (mario.position.y <= 1) {
+                    mario.position.y = 1;
+                    isJumping = false;
+                    isGrounded = true;
+                }
+            }
+
+            // Control de la cámara
+            if (!isAlternateView) {
+                camera.position.x = mario.position.x;
+                camera.position.y = mario.position.y + 5;
+                camera.position.z = mario.position.z + 10;
+            }
+
+            // Movimiento de obstáculos móviles
+            movingObstacles.forEach(obstacle => {
+                obstacle.position.x += obstacleSpeed;
+                if (obstacle.position.x > 10 || obstacle.position.x < -10) {
+                    obstacleSpeed *= -1; // Invertir la dirección al alcanzar los límites
+                }
+            });
+
+            // Detección de colisiones con monedas
+            coins.forEach((coin, index) => {
+                if (coin.position.distanceTo(mario.position) < 1) {
+                    coin.position.y = -10; // Ocultar la moneda
+                    coinCount++;
+                    score += 10;
+                    document.getElementById("coinCount").textContent = coinCount;
+                    document.getElementById("score").textContent = score;
+
+                    // Reproducir sonido de la moneda
+                    playCoinSound();
+
+                    // Verificar si se han obtenido 5 monedas
+                    checkCoinCount();
+                }
+            });
+
+            // Detección de colisiones con obstáculos estáticos y móviles
+            if (canMove) {
+                staticObstacles.forEach((obstacle, index) => {
+                    if (obstacle.position.distanceTo(mario.position) < 1) {
+                        // Mostrar botón de reinicio
+                        document.getElementById("restartBtn").style.display = "block";
+                        // Impedir que Mario se mueva
+                        canMove = false;
+                        // Iniciar la animación de Mario subiendo
+                        animateMarioUp();
+                    }
+                });
+
+                movingObstacles.forEach((obstacle, index) => {
+                    if (obstacle.position.distanceTo(mario.position) < 1) {
+                        // Mostrar botón de reinicio
+                        document.getElementById("restartBtn").style.display = "block";
+                        // Impedir que Mario se mueva
+                        canMove = false;
+                        // Iniciar la animación de Mario subiendo
+                        animateMarioUp();
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Verificar si se han obtenido 5 monedas
+        function checkCoinCount() {
+            if (coinCount >= 8) {
+                // Mostrar ventana con botones
+                const confirmDialog = confirm("¡Felicidades! ¿Quieres pasar al siguiente nivel?");
+                if (confirmDialog) {
+                    // Redirigir a otra página
+                    window.location.href = "level_2.html";
+                } else {
+                    // Continuar el juego
+                    coinCount = 0;
+                    document.getElementById("coinCount").textContent = coinCount;
+                }
+            }
+        }
+        // Función para reproducir la música de fondo
+        function playBackgroundMusic() {
+            const backgroundMusic = document.getElementById("backgroundMusic");
+            backgroundMusic.volume = 0.5; // Ajusta el volumen según tus preferencias
+            backgroundMusic.play();
+        }
+
+        // Llama a la función para reproducir la música de fondo cuando la página se carga
+        window.addEventListener("load", playBackgroundMusic);
+
+        // Función para animar a Mario subiendo
+        function animateMarioUp() {
+            const upwardSpeed = 0.1;
+            const maxUpwardPosition = 20; // Altura máxima a la que Mario puede llegar
+            if (mario.position.y < maxUpwardPosition) {
+                mario.position.y += upwardSpeed;
+            }
+        }
+
+    </script>
+</body>
+</html>

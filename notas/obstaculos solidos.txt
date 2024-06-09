@@ -1,0 +1,77 @@
+ // Detección de colisiones con obstáculos sólidos
+solidObstacles.forEach((obstacle, index) => {
+    const obstacleSize = 1; // Tamaño del obstáculo en cada dimensión
+    const playerSize = 1; // Tamaño del jugador en cada dimensión
+    const margin = 0.05; // Margen de colisión para evitar interpenetraciones
+
+    const obstacleMinX = obstacle.position.x - obstacleSize / 2;
+    const obstacleMaxX = obstacle.position.x + obstacleSize / 2;
+    const obstacleMinZ = obstacle.position.z - obstacleSize / 2;
+    const obstacleMaxZ = obstacle.position.z + obstacleSize / 2;
+
+    const playerMinX = mario.position.x - playerSize / 2 + margin;
+    const playerMaxX = mario.position.x + playerSize / 2 - margin;
+    const playerMinZ = mario.position.z - playerSize / 2 + margin;
+    const playerMaxZ = mario.position.z + playerSize / 2 - margin;
+
+    // Verificar colisión en los ejes X y Z
+    const collidesX = (playerMinX < obstacleMaxX && playerMaxX > obstacleMinX);
+    const collidesZ = (playerMinZ < obstacleMaxZ && playerMaxZ > obstacleMinZ);
+
+    if (collidesX && collidesZ) {
+        // Hay colisión en ambos ejes, ajustar la posición del jugador
+        const overlapX = Math.min(playerMaxX - obstacleMinX, obstacleMaxX - playerMinX);
+        const overlapZ = Math.min(playerMaxZ - obstacleMinZ, obstacleMaxZ - playerMinZ);
+
+        if (overlapX < overlapZ) {
+            // La colisión es mayor en el eje X, mover al jugador en el eje Z
+            if (mario.position.z < obstacle.position.z) {
+                mario.position.z = obstacleMinZ - playerSize / 2 - margin;
+            } else {
+                mario.position.z = obstacleMaxZ + playerSize / 2 + margin;
+            }
+        } else {
+            // La colisión es mayor en el eje Z, mover al jugador en el eje X
+            if (mario.position.x < obstacle.position.x) {
+                mario.position.x = obstacleMinX - playerSize / 2 - margin;
+            } else {
+                mario.position.x = obstacleMaxX + playerSize / 2 + margin;
+            }
+        }
+
+        // Si el jugador está saltando y está lo suficientemente alto, permitirle trepar
+        if (isJumping && mario.position.y > obstacle.position.y + playerSize) {
+            mario.position.y = obstacle.position.y + playerSize; // Alinear al jugador con la parte superior del obstáculo
+            isGrounded = true; // El jugador ahora está en el suelo
+            isJumping = false; // El jugador ha dejado de saltar
+        } else {
+            // Evitar que el jugador atraviese el obstáculo
+            mario.position.y = Math.max(mario.position.y, obstacle.position.y + playerSize / 2);
+        }
+
+        // Impulsar a Mario hacia arriba si toca la parte superior del obstáculo
+        if (isJumping && mario.position.y < obstacle.position.y + obstacleSize / 2 && mario.position.y > obstacle.position.y + playerSize) {
+            mario.position.y += 0.1; // Puedes ajustar la altura del impulso
+            jumpForce = 0; // Reiniciar la fuerza de salto
+        }
+    }
+});
+
+
+ // Creación de obstáculos sólidos
+        function createSolidObstacles() {
+            const obstacleGeometry = new THREE.BoxGeometry(2, 1, 2); // Cambiamos la geometría para que sea más ancha
+            const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const obstaclePositions = [
+                { x: 2, y: 0.5, z: -10 },
+                { x: -2, y: 0.5, z: -20 },
+                { x: 0, y: 0.5, z: -30 },
+            ];
+            obstaclePositions.forEach(position => {
+                const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+                obstacle.position.set(position.x, position.y, position.z);
+                solidObstacles.push(obstacle);
+                scene.add(obstacle);
+            });
+        }
+        createSolidObstacles();

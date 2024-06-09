@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: black;
+        }
+        #gifContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        #gifOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-size: 24px;
+        }
+        #startButton {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px 40px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .levelButton {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px;
+        }
+        .locked {
+            background-color: gray;
+        }
+        .lockIcon {
+            font-size: 24px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gifContainer">
+        <img src="int2.jpeg" alt="Gif" style="width:100%; height:100%;">
+        <div id="gifOverlay">
+            <button id="startButton" onclick="showLevelButtons()">Jugar</button>
+            <div id="levelButtons" style="display: none;">
+                <button class="levelButton" onclick="window.location.href='level_1.html'">Nivel 1</button>
+                <button class="levelButton locked" onclick="selectLevel(2)" disabled>
+                    <span class="lockIcon">&#128274;</span>Nivel 2
+                </button>
+                <button class="levelButton locked" onclick="selectLevel(3)" disabled>
+                    <span class="lockIcon">&#128274;</span>Nivel 3
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let music = new Audio('inicio.mp3');
+        music.loop = true;
+        music.currentTime = 133.5; // Tiempo en segundos en el que inicia la música
+        music.play();
+
+        // Controlar el tiempo en el que termina la música
+        music.addEventListener('ended', function() {
+            // Reiniciar la reproducción desde el segundo 10
+            music.currentTime = 180;
+            music.play();
+        });
+
+        function showLevelButtons() {
+            document.getElementById("startButton").style.display = "none";
+            document.getElementById("levelButtons").style.display = "block";
+        }
+
+        function selectLevel(level) {
+            // Puedes redirigir a diferentes páginas según el nivel seleccionado
+            // Por ahora, simplemente mostramos un mensaje
+            alert("Seleccionaste el Nivel " + level);
+        }
+    </script>
+</body>
+</html>
